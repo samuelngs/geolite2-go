@@ -1,9 +1,7 @@
 
 all:
-	go-bindata -o geolite-db.go -pkg geolite ./GeoLite2-City.mmdb.bz2
+	binary -dir ./GeoLite2-City.mmdb -pkg geolite -max 20971520
 
 test:
-	go run test/main.go
+	go test -v
 
-run-test:
-	bi

@@ -9,54 +9,49 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"io"
 	"log"
-	"strconv"
 	"strings"
 )
 
 var data = map[string][]string{
 	"GeoLite2-City.mmdb": []string{
-		d9e4a60aaf816febd5d102a3a0b137fcb7e06040f, d6425770c9f2b9de98d7235d20073252c6ecc7753, d2ca89a081c835d2adf4dd2068d7538ed8d0166ec, dabd2c51d7b0e599215cce318f91a2a83f80cd079,
+		d3795705a69e1d5ceed68c4aacfce8d57a6241456, d7ed4099e97b4e01efee2c5c9f6d58f59fe88ebd6, da5cc1d5162cf26f2cd5456e95dd749c8243428cd, d9db89ed3329a1e2e9788b09b6553b0c4db79f8a8, dcbd460f77c70f94eba5976b49409fb2218fa10af,
 	},
 }
 
-var size = map[string]int{
-	"GeoLite2-City.mmdb": 65865934,
-}
-
 // Bytes to retrieve file data
-func Bytes(filename string) ([]byte, error) {
+func Bytes(filename string) (b []byte, e error) {
 	var r bytes.Buffer
 	defer r.Truncate(0)
 	part, ok := data[filename]
 	if !ok {
 		return nil, errors.New("file does not exist")
 	}
-	size, ok := size[filename]
-	if !ok {
-		return nil, errors.New("could not find file size information")
-	}
-	cont := strings.Join(part, "")
-	arry := strings.Split(cont, " ")
-	for _, v := range arry {
-		n, err := strconv.Atoi(v)
+	ch := make(chan []byte, 1)
+	go func() {
+		cont := strings.Join(part, "")
+		data := []byte(cont)
+		gz, err := gzip.NewReader(bytes.NewBuffer(data))
 		if err != nil {
-			return nil, err
+			e = err
+			ch <- nil
+			return
 		}
-		b := byte(n)
-		r.WriteByte(b)
-	}
-	data := make([]byte, size)
-	bytr := bytes.NewReader(r.Bytes())
-	gz, err := gzip.NewReader(bytr)
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
-	if _, err := gz.Read(data); err != nil {
-		return nil, err
-	}
-	return data, nil
+		var buf bytes.Buffer
+		if _, err = io.Copy(&buf, gz); err != nil {
+			e = err
+			ch <- nil
+			return
+		}
+		if err := gz.Close(); err != nil {
+			e = err
+			ch <- nil
+			return
+		}
+		ch <- buf.Bytes()
+	}()
+	return <-ch, nil
 }
 
 // MustBytes to read bytes data from file

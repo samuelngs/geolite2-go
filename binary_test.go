@@ -1,6 +1,10 @@
 package geolite
 
-import "testing"
+import (
+	"crypto/md5"
+	"encoding/hex"
+	"testing"
+)
 
 // TestBytes func
 func TestBytes(t *testing.T) {
@@ -8,6 +12,8 @@ func TestBytes(t *testing.T) {
 	case err != nil:
 		t.Error(err)
 	default:
-		t.Logf("database size: %d", len(b))
+		hash := md5.New()
+		hash.Write(b[:])
+		t.Logf("database size: %v, md5 hash: %v", len(b), hex.EncodeToString(hash.Sum(nil)))
 	}
 }
