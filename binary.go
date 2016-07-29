@@ -11,47 +11,66 @@ import (
 	"errors"
 	"io"
 	"log"
-	"strings"
 )
 
 var data = map[string][]string{
 	"GeoLite2-City.mmdb": []string{
-		d3795705a69e1d5ceed68c4aacfce8d57a6241456, d7ed4099e97b4e01efee2c5c9f6d58f59fe88ebd6, da5cc1d5162cf26f2cd5456e95dd749c8243428cd, d9db89ed3329a1e2e9788b09b6553b0c4db79f8a8, dcbd460f77c70f94eba5976b49409fb2218fa10af,
+		df58a53428621fbce606603ee79db06b6c8e2953e,d8614b12f874f910566a05a94fd82abbaae7fe2fb,ded27e727e28460b1040fd0b054a68bdcbff40dbf,
 	},
+	
+}
+
+// buffer data
+type buffer struct {
+	err  error
+	data []byte
 }
 
 // Bytes to retrieve file data
-func Bytes(filename string) (b []byte, e error) {
+func Bytes(filename string) ([]byte, error) {
 	var r bytes.Buffer
 	defer r.Truncate(0)
-	part, ok := data[filename]
+	parts, ok := data[filename]
 	if !ok {
 		return nil, errors.New("file does not exist")
 	}
-	ch := make(chan []byte, 1)
+	ch := make(chan *buffer, 1)
 	go func() {
-		cont := strings.Join(part, "")
-		data := []byte(cont)
-		gz, err := gzip.NewReader(bytes.NewBuffer(data))
+		var zbuf bytes.Buffer
+		defer zbuf.Truncate(0)
+		for _, s := range parts {
+			zbuf.Write([]byte(s))
+		}
+		gz, err := gzip.NewReader(&zbuf)
 		if err != nil {
-			e = err
-			ch <- nil
+			ch <- &buffer{
+				err: err,
+			}
 			return
 		}
 		var buf bytes.Buffer
+		defer buf.Truncate(0)
 		if _, err = io.Copy(&buf, gz); err != nil {
-			e = err
-			ch <- nil
+			ch <- &buffer{
+				err: err,
+			}
 			return
 		}
 		if err := gz.Close(); err != nil {
-			e = err
-			ch <- nil
+			ch <- &buffer{
+				err: err,
+			}
 			return
 		}
-		ch <- buf.Bytes()
+		ch <- &buffer{
+			data: buf.Bytes(),
+		}
 	}()
-	return <-ch, nil
+	res := <-ch
+	if err := res.err; err != nil {
+		return nil, res.err
+	}
+	return res.data, nil
 }
 
 // MustBytes to read bytes data from file
